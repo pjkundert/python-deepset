@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepset"
+version = "0.1.0"
+description = "Recursive subset comparison for complex nested Python data structures"
+readme = "README.md"
+authors = [{name = "Perry Kundert", email = "perry@dominionrnd.com"}]
+license = "MIT"
+keywords = ["comparison", "subset", "recursive", "nested", "data-structures"]
+requires-python = ">=3.6"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/perry-kundert/python-deepset"
+"Bug Reports" = "https://github.com/perry-kundert/python-deepset/issues"
+"Source" = "https://github.com/perry-kundert/python-deepset"
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "setuptools",
+    "wheel",
+    "pytest>=6.0",
+    "black>=20.0",
+    "flake8",
+    "isort>=5.0",
+]
+
+[tool.setuptools]
+py-modules = ["deepset"]
+
+[tool.black]
+line-length = 88
+target-version = ['py36']
+
+[tool.isort]
+profile = "black"
