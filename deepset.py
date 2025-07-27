@@ -1,5 +1,6 @@
 import operator
 from collections import abc
+from enum import Enum
 
 
 def ordinal(num):
@@ -11,8 +12,29 @@ def ordinal(num):
 ordinal.suffixes = {1: "st", 2: "nd", 3: "rd"}
 
 
-class ZipCompareError( ValueError ):
+class ComparisonResult(Enum):
+    """Ordered enum representing the strength of subset relationships.
+
+    Values are ordered from weakest to strongest relationship:
+    FALSE < LT < LE < EQ
+
+    This allows using min() to aggregate results across nested structures.
+    """
+
+    FALSE = 0  # No correspondence (items in a not found in b)
+    LT = 1  # Strict subset (a < b, extras in b)
+    LE = 2  # Subset or equal (a <= b, may have extras in b)
+    EQ = 3  # Equal (a == b, identical)
+
+    def __lt__(self, other):
+        if isinstance(other, ComparisonResult):
+            return self.value < other.value
+        return NotImplemented
+
+
+class ZipCompareError(ValueError):
     pass
+
 
 def zip_compare(a, b, op=operator.le):
     """Attempts to compare two iterables for ordered set consistency; that the first iterable's
@@ -53,92 +75,149 @@ def zip_compare(a, b, op=operator.le):
 
 
 def recursive_compare(a, b, op=operator.le):
-    """Recursively apply `op` (only <, <=, =) to all nested elements of a and b."""
+    """Recursively apply `op` (only <, <=, =) to all nested elements of a and b.
+
+    Returns True if the relationship between a and b satisfies the requested operator.
+    """
     assert op in (operator.le, operator.lt, operator.eq)
 
+    # Get the actual relationship strength
+    result = _get_comparison_strength(a, b)
+
+    # Map result to boolean based on requested operator
+    if op == operator.eq:
+        return result == ComparisonResult.EQ
+    elif op == operator.le:
+        return result in (ComparisonResult.EQ, ComparisonResult.LE, ComparisonResult.LT)
+    elif op == operator.lt:
+        return result in (
+            ComparisonResult.LT,
+            ComparisonResult.LE,
+        )  # Allow both strict and non-strict subset
+
+    return False
+
+
+def _get_comparison_strength(a, b):
+    """Returns the strongest valid relationship between a and b.
+
+    Returns ComparisonResult enum indicating:
+    - EQ: a == b (identical)
+    - LE: a <= b (subset, may have extras in b)
+    - LT: a < b (strict subset, has extras in b)
+    - FALSE: no valid relationship (items in a not found in b)
+    """
     if isinstance(a, abc.Mapping) and isinstance(b, abc.Mapping):
-        # Keys compared as sets (subset), values compared recursively for shared keys
-        a_keys = set(a.keys())
-        b_keys = set(b.keys())
-
-        # For equality, key sets must be identical
-        if op == operator.eq and a_keys != b_keys:
-            return False
-
-        # Check if a_keys is subset of b_keys
-        if not a_keys.issubset(b_keys):
-            return False
-
-        # Compare values for all keys in a
-        return all(recursive_compare(a[k], b[k], op) for k in a_keys)
-
+        return _compare_mappings(a, b)
     elif isinstance(a, abc.Set) and isinstance(b, abc.Set):
-        # For sets, every non-equal non-literal element in a must be 'op' (eg <=, a subset) of some element in b.
-        # The problem is, literals and exactly matching complex objects are easy to factor out using standard set operations.
-        equal = a & b
-        a_uniq = a - equal
-        b_uniq = b - equal
-        a_used = set()
-        b_used = set()
-        if len(equal) == len(a) == len(b):
-            return op in (operator.eq, operator.le)
-        # The sets are not trivially equal.  Examine the remaining unique items in a vs. b's
-        # unique, then previously matched items.
-        for x in a_uniq:
-            for y in b_uniq:
-                if recursive_compare(x, y, op):
-                    a_used.add(x)
-                    b_used.add(y)
-                    b_uniq.remove(y)
-                    break
-            else:
-                for y in b_used:
-                    if recursive_compare(x, y, op):
-                        a_used.add(x)
-                        break
-                else:
-                    # Item x from a not found in b!  A cannot be </<=/==
-                    return False
-        # All x in a were found to be equal or match 'op' via recursive_compare w/ some y in b.
-        # This satisfies <=/==/>=.  For <, we must have some b_uniq left unmatched by any a.
-        if op == operator.lt:
-            return len(b_uniq) > 0
-        if op == operator.eq:
-            return len(b_uniq) == 0
-        return True
+        return _compare_sets(a, b)
     elif (
         isinstance(a, abc.Iterable)
         and isinstance(b, abc.Iterable)
         and not isinstance(a, (str, bytes, abc.Mapping, abc.Set))
         and not isinstance(b, (str, bytes, abc.Mapping, abc.Set))
     ):
-        # Sequential matching: each element in a must match some element at same or later position in b
-        a_iter = iter(a)
-        b_iter = iter(b)
-        try:
-            for (ai, x), (bi, y) in zip_compare(a_iter, b_iter, op=op):
-                pass
-        except ZipCompareError:
-            return False
-
-        if op == operator.eq:
-            try:
-                y = next(b_iter)
-                raise ZipCompareError(
-                    f"{ordinal(ai+1)} item {x!r} in first iterable not {op}"
-                    f" due to additional {ordinal(bi+2)} item {y!r} in second iterable"
-                )
-            except StopIteration:
-                pass
-
-        return True
-
+        return _compare_iterables(a, b)
     else:
-        # Unmatched types and Literals: only equality comparison
-        if op in (operator.lt, operator.le, operator.gt, operator.ge):
-            return a == b
-        else:
-            return op(a, b)
+        # Literals and unmatched types
+        return ComparisonResult.EQ if a == b else ComparisonResult.FALSE
+
+
+def _compare_mappings(a, b):
+    """Compare two mappings and return relationship strength."""
+    a_keys = set(a.keys())
+    b_keys = set(b.keys())
+
+    # Check if a's keys are subset of b's keys
+    if not a_keys.issubset(b_keys):
+        return ComparisonResult.FALSE
+
+    # Start with best case - determine if we have extra keys in b
+    result = ComparisonResult.LT if len(b_keys) > len(a_keys) else ComparisonResult.EQ
+
+    # Compare values for all keys in a
+    for k in a_keys:
+        child_result = _get_comparison_strength(a[k], b[k])
+        result = min(result, child_result)
+        if result == ComparisonResult.FALSE:
+            break
+
+    return result
+
+
+def _compare_sets(a, b):
+    """Compare two sets and return relationship strength."""
+    # Check for items in a not in b first
+    equal = a & b
+    a_uniq = a - equal
+    b_uniq = b - equal
+
+    # If sets are identical
+    if len(equal) == len(a) == len(b):
+        return ComparisonResult.EQ
+
+    # If a has items not in b, check recursive relationships
+    a_used = set()
+    b_used = set()
+    result = ComparisonResult.LT if len(b_uniq) > 0 else ComparisonResult.LE
+
+    for x in a_uniq:
+        # Try to find a match in b_uniq first
+        found = False
+        for y in b_uniq:
+            child_result = _get_comparison_strength(x, y)
+            if child_result != ComparisonResult.FALSE:
+                a_used.add(x)
+                b_used.add(y)
+                b_uniq.remove(y)
+                result = min(result, child_result)
+                found = True
+                break
+
+        if not found:
+            # Try to find a match in already used items from b
+            for y in b_used:
+                child_result = _get_comparison_strength(x, y)
+                if child_result != ComparisonResult.FALSE:
+                    a_used.add(x)
+                    result = min(result, child_result)
+                    found = True
+                    break
+
+        if not found:
+            return ComparisonResult.FALSE
+
+    return result
+
+
+def _compare_iterables(a, b):
+    """Compare two iterables and return relationship strength."""
+    a_list = list(a)
+    b_list = list(b)
+
+    try:
+        # Use zip_compare to find matching pairs
+        result = ComparisonResult.EQ
+        a_iter = iter(a_list)
+        b_iter = iter(b_list)
+        matched_b_indices = set()
+
+        for (ai, x), (bi, y) in zip_compare(a_iter, b_iter, op=operator.le):
+            matched_b_indices.add(bi)
+            # Get relationship for this pair
+            child_result = _get_comparison_strength(x, y)
+            result = min(result, child_result)
+            if result == ComparisonResult.FALSE:
+                return ComparisonResult.FALSE
+
+        # Check if b has unmatched elements (makes it LT if we had EQ)
+        if len(matched_b_indices) < len(b_list) and result == ComparisonResult.EQ:
+            result = ComparisonResult.LT
+
+        return result
+
+    except ZipCompareError:
+        return ComparisonResult.FALSE
 
 
 class DeepSet:

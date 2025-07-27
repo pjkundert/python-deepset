@@ -1,42 +1,32 @@
 # deepset - Recursive Subset Comparison for Python
 
-<p align="center">
-  <img src="https://img.shields.io/pypi/v/deepset.svg" alt="PyPI version">
-  <img src="https://img.shields.io/pypi/pyversions/deepset.svg" alt="Python versions">
-  <img src="https://img.shields.io/github/license/perry-kundert/python-deepset.svg" alt="License">
-</p>
+[![PyPI version](https://img.shields.io/pypi/v/deepset.svg)](https://pypi.org/project/deepset/)
+[![Python versions](https://img.shields.io/pypi/pyversions/deepset.svg)](https://pypi.org/project/deepset/)
+[![License](https://img.shields.io/github/license/pjkundert/python-deepset.svg)](https://github.com/pjkundert/python-deepset/blob/master/LICENSE)
 
-**deepset** provides recursive subset comparison for complex nested Python data structures. It implements intuitive subset/superset semantics for sets, lists, dictionaries, and tuples, allowing you to express relationships like "this nested structure is contained within that one" naturally.
-
-## Features
-
-- 🔍 **Recursive comparison** of deeply nested data structures
-- 📊 **Subset semantics** for sets, lists, dictionaries, and tuples  
-- 🔗 **Automatic conversion** of regular Python objects for comparison
-- 🚫 **Zero dependencies** - uses only Python standard library
-- ✅ **Comprehensive test suite** with 100% coverage
+Recursive subset comparison for complex nested Python data structures. Express relationships like "this nested structure is contained within that one" naturally.
 
 ## Quick Start
 
 ```python
 from deepset import deepset
 
-# Set subset comparison
-assert deepset({1, 2}) <= deepset({1, 2, 3})
+# Set subsets
+assert deepset({1, 2}) <= {1, 2, 3}  # True
 
-# Nested structure comparison  
-assert deepset({('a', frozenset({2}))}) <= deepset({('a', frozenset({2, 3}))})
+# Nested structures  
+assert deepset({('a', frozenset({2}))}) <= {('a', frozenset({2, 3}))}  # True
 
-# List sequential matching (order matters, intervening items allowed)
-assert deepset([1, 3]) <= deepset([1, 2, 3, 4])
+# Sequential lists (order matters, gaps allowed)
+assert deepset([1, 3]) <= [1, 2, 3, 4]  # True
 
-# Dictionary key-value subset
-assert deepset({'a': 1}) <= deepset({'a': 1, 'b': 2})
+# Dictionary subsets
+assert deepset({'a': 1}) <= {'a': 1, 'b': 2}  # True
 
-# Mixed nested structures
+# Mixed nested
 data1 = {'sets': {frozenset({1, 2})}, 'lists': [[1, 2]]}
 data2 = {'sets': {frozenset({1, 2, 3})}, 'lists': [[1, 2, 3]]}
-assert deepset(data1) <= deepset(data2)
+assert deepset(data1) <= data2  # True
 ```
 
 ## Installation
@@ -45,81 +35,50 @@ assert deepset(data1) <= deepset(data2)
 pip install deepset
 ```
 
-## Comparison Semantics
+## Comparison Types
 
-### Sets and Frozensets
-Traditional subset comparison with recursive element matching:
-
+**Sets**: Traditional subset semantics
 ```python
-# Simple subset
-deepset({1, 2}) <= deepset({1, 2, 3})  # True
-
-# Nested sets - recursive comparison  
-deepset({frozenset({1, 2})}) <= deepset({frozenset({1, 2, 3})})  # True
+assert deepset({1, 2}) < {1, 2, 3}  # True (strict subset)
+assert deepset({frozenset({1, 2})}) <= {frozenset({1, 2, 3})}  # Recursive
 ```
 
-### Lists and Tuples  
-Sequential subset matching where items from the first must appear in order in the second, but the second can have intervening items:
-
+**Lists/Tuples**: Sequential subset (order preserved, gaps allowed)
 ```python
-# Sequential matching with intervening items
-deepset([1, 3]) <= deepset([1, 2, 3, 4])  # True
-deepset([1, 3]) <= deepset([3, 1])        # False (wrong order)
-
-# Nested lists
-deepset([[1, 2]]) <= deepset([[1, 2, 3]])  # True
+assert deepset([1, 3]) <= [1, 2, 3, 4]  # True
+assert not deepset([1, 3]) <= [3, 1]    # False (wrong order)
 ```
 
-### Dictionaries
-Key subset with recursive value comparison:
-
+**Dictionaries**: Key subset + recursive value comparison
 ```python
-# Key subset + value comparison
-deepset({'a': 1}) <= deepset({'a': 1, 'b': 2})          # True  
-deepset({'a': [1, 2]}) <= deepset({'a': [1, 2, 3]})     # True
-deepset({'a': 1, 'c': 1}) <= deepset({'a': 1, 'b': 2})  # False (missing key 'c')
+assert deepset({'a': 1}) <= {'a': 1, 'b': 2}       # True (extra key)
+assert deepset({'a': [1, 2]}) <= {'a': [1, 2, 3]}  # True (recursive)
 ```
 
-### Operators
-
-All standard comparison operators are supported:
-
-```python
-deepset({1, 2}) < deepset({1, 2, 3})   # True (strict subset)
-deepset({1, 2}) <= deepset({1, 2})     # True (subset or equal)
-deepset({1, 2}) == deepset({1, 2})     # True (equal)
-deepset({1, 2, 3}) >= deepset({1, 2})  # True (superset or equal)
-deepset({1, 2, 3}) > deepset({1, 2})   # True (strict superset)
-```
+**All Operators**: `<`, `<=`, `==`, `>=`, `>` supported
 
 ## Development
 
 ```bash
-# Clone repository
-git clone https://github.com/perry-kundert/python-deepset.git
+git clone https://github.com/pjkundert/python-deepset.git
 cd python-deepset
 
-# Use Nix supplied Python, Virtual Env
-make nix-venv       # Provides dev environment shell
-make nix-venv-test  # Runs Makefile 'test' target in Nix dev venv
+# Standard development (with user provided Python, package installation)
+make install-dev   # Install dev dependencies
+make test          # Run tests
+make style         # Format code (autopep8, black, isort)
+make build         # Build package
 
-# Install development dependencies
-make install-dev
+# Nix environment (recommended for reproducible builds)
+make nix-venv                   # Enter Nix + venv environment
+make nix-venv-test              # Run tests in Nix environment
+make nix-venv-unit-test_name    # Run specific test class
 
-# Run tests
-make test
-
-# Check code style
-make style_check
-
-# Build package
-make build
+# Multi-version testing
+TARGET=py310 make nix-venv-test # Test with Python 3.10
+TARGET=py312 make nix-venv-test # Test with Python 3.12
 ```
 
 ## License
 
-MIT License. See LICENSE file for details.
-
-## Author
-
-Perry Kundert <perry@dominionrnd.com>
+MIT License - Perry Kundert <perry@dominionrnd.com>

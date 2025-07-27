@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepset"
-version = "0.1.0"
+version = "1.0.0"
 description = "Recursive subset comparison for complex nested Python data structures"
 readme = "README.md"
 authors = [{name = "Perry Kundert", email = "perry@dominionrnd.com"}]
@@ -22,14 +22,15 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Utilities",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/perry-kundert/python-deepset"
-"Bug Reports" = "https://github.com/perry-kundert/python-deepset/issues"
-"Source" = "https://github.com/perry-kundert/python-deepset"
+"Homepage" = "https://github.com/pjkundert/python-deepset"
+"Bug Reports" = "https://github.com/pjkundert/python-deepset/issues"
+"Source" = "https://github.com/pjkundert/python-deepset"
 
 [project.optional-dependencies]
 dev = [
@@ -40,6 +41,7 @@ dev = [
     "black>=20.0",
     "flake8",
     "isort>=5.0",
+    "autopep8",
 ]
 
 [tool.setuptools]

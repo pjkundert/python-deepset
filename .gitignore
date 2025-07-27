@@ -27,3 +27,4 @@ dist/
 .cache/
 .eggs
 .coverage*
+/.claude

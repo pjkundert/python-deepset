@@ -9,6 +9,8 @@ VERSION		= $(shell sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml)
 VENV_OPTS	=
 VENV		= $(CURDIR)-$(VERSION)-$(PYTHON_V)
 
+PYTEST		?= pytest
+PYTEST_OPTS	= # -vv --capture=no
 
 build:
 	$(PYTHON) -m build
@@ -41,17 +43,18 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 
 test:
-	pytest -vv --capture=no
+	$(PYTEST) $(PYTEST_OPTS)
 
 # Run all tests with names matching the target string
 unit-%:
-	pytest -vv --capture=no -k $*
+	$(PYTEST) $(PYTEST_OPTS) -k $*
 
 style_check:
 	isort --check-only deepset.py *.py
 	black deepset.py *.py --check
 
 style:
+	autopep8 --in-place --select=W291,W293 deepset.py *.py
 	black deepset.py *.py
 	isort deepset.py *.py
 
