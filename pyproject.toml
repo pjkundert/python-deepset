@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deepset"
-version = "1.0.0"
+version = "1.0.1"
 description = "Recursive subset comparison for complex nested Python data structures"
 readme = "README.md"
 authors = [{name = "Perry Kundert", email = "perry@dominionrnd.com"}]
