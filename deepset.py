@@ -90,10 +90,7 @@ def recursive_compare(a, b, op=operator.le):
     elif op == operator.le:
         return result in (ComparisonResult.EQ, ComparisonResult.LE, ComparisonResult.LT)
     elif op == operator.lt:
-        return result in (
-            ComparisonResult.LT,
-            ComparisonResult.LE,
-        )  # Allow both strict and non-strict subset
+        return result == ComparisonResult.LT
 
     return False
 
@@ -153,8 +150,11 @@ def _compare_sets(a, b):
     b_uniq = b - equal
 
     # If sets are identical
-    if len(equal) == len(a) == len(b):
-        return ComparisonResult.EQ
+    if len(equal) == len(a):
+        if len(b) == len(a):
+            return ComparisonResult.EQ
+        if len(b) > len(a):
+            return ComparisonResult.LT
 
     # If a has items not in b, check recursive relationships
     a_used = set()
@@ -252,7 +252,7 @@ class DeepSet:
     def __gt__(self, other):
         if not isinstance(other, DeepSet):
             other = DeepSet(other)
-        return recursive_compare(other.data, self.data, operator.le)
+        return recursive_compare(other.data, self.data, operator.lt)
 
 
 def deepset(data):

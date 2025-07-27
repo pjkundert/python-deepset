@@ -106,6 +106,12 @@ class TestDeepSetOperators:
         """Test __lt__ operator"""
         assert deepset({1, 2}) < deepset({1, 2, 3})
         assert not deepset({1, 2}) < deepset({1, 2})
+        assert deepset({'a': {1, 2}}) < deepset({'a': {1, 2, 3}})
+        assert not deepset({'a': {1, 2, 3}}) < deepset({'a': {1, 2, 3}})
+        assert deepset({'a': [1, 2]}) < deepset({'a': [1, 2, 3]})
+        assert not deepset({'a': [1, 2, 3]}) < deepset({'a': [1, 2, 3]})
+        assert deepset({'a': [1, 2, 3]}) > deepset({'a': [1, 2]})
+        assert not deepset({'a': [1, 2, 3]}) > deepset({'a': [1, 2, 3]})
 
     def test_strict_subset_semantics(self):
         """Test that < requires at least one strict inequality somewhere in the structure"""
