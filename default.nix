@@ -5,6 +5,19 @@ with pkgs;
 let
 in
 {
+  py314 = stdenv.mkDerivation rec {
+    name = "python314-with-pytest";
+
+    buildInputs = [
+      cacert
+      git
+      gnumake
+      openssh
+      python314
+      python314Packages.pytest
+    ];
+  };
+
   py313 = stdenv.mkDerivation rec {
     name = "python313-with-pytest";
 
