@@ -5,78 +5,115 @@ import pytest
 from deepset import (
     ComparisonResult,
     DeepSet,
+    _compare_sets,
     _get_comparison_strength,
     deepset,
     zip_compare,
 )
 
 
+class TestBasics:
+    def test_recursive_compare(self):
+        assert _compare_sets(frozenset({1}), frozenset({1, 2, 3})) == ComparisonResult.LT
+        assert _compare_sets(frozenset({1, 2, 3}), frozenset({1, 2, 3})) == ComparisonResult.EQ
+
+
 class TestDeepSetSets:
     def test_set_subset_comparison(self):
         """Test that sets compare based on element-wise matching"""
-        # Example from the original request
-        assert deepset({("a", frozenset({2}))}) <= deepset(
-            {("a", frozenset({2, 3})), ("a", frozenset({1}))}
-        )
-        assert deepset({("a", frozenset({1}))}) <= deepset(
-            {("a", frozenset({2, 3})), ("a", frozenset({1}))}
-        )
 
-        # Contrasting with regular Python behavior
-        assert not (
-            {("a", frozenset({2}))} <= {("a", frozenset({2, 3})), ("a", frozenset({1}))}
-        )
-        assert {("a", frozenset({1}))} <= {
+        assert deepset({("a", frozenset({2}))}) <= {
+            ("a", frozenset({2, 3})),
+        }
+        assert deepset({("a", frozenset({2}))}) <= {
+            ("a", frozenset({2, 3})),
+            ("a", frozenset({1})),
+        }
+
+        assert deepset({("a", frozenset({1}))}) <= {
             ("a", frozenset({2, 3})),
             ("a", frozenset({1})),
         }
 
     def test_simple_set_comparison(self):
         """Test basic set comparisons"""
-        assert deepset({1, 2}) <= deepset({1, 2, 3})
-        assert deepset({1}) <= deepset({1, 2})
-        assert not deepset({1, 4}) <= deepset({1, 2, 3})
-        assert deepset(set()) <= deepset({1, 2})
+        # Empty set always < any non-empty set
+        assert deepset(set()) <= {1, 2}
+        assert deepset(set()) < {1, 2}
+        # Otherwise, extra unmatched on RHS is </<=
+        assert deepset({1, 2}) <= {1, 2, 3}
+        assert deepset({1, 2}) < {1, 2, 3}
+        assert deepset({1}) <= {1, 2}
+        assert deepset({1}) < {1, 2}
+        assert not deepset({1, 4}) <= {1, 2, 3}
 
     def test_frozenset_comparison(self):
         """Test frozenset comparisons"""
-        assert deepset(frozenset({1, 2})) <= deepset(frozenset({1, 2, 3}))
-        assert not deepset(frozenset({1, 4})) <= deepset(frozenset({1, 2, 3}))
+        assert deepset(frozenset({1, 2})) <= frozenset({1, 2, 3})
+        assert not deepset(frozenset({1, 4})) <= frozenset({1, 2, 3})
+
+    def test_many_set_comparison(self):
+        """Test many compatible sets comparisons. Multiple items of a may match
+        a few items of b..."""
+        assert deepset({frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})}) <= {
+            frozenset({1, 2, 3})
+        }
+        assert deepset({frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})}) < {
+            frozenset({1, 2, 3})
+        }
+        assert deepset({frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})}) < {
+            frozenset({1, 2, 3, 4})
+        }
+        assert deepset({frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})}) < {
+            frozenset({1, 2, 3}),
+            frozenset({4}),
+        }
+
+    def test_lotsa_sets_comparison(self):
+        """However, we may not catch the case where there are many items in b that would be matched
+        by an item in a?
+
+        """
+        assert deepset({frozenset({1})}) < {
+            frozenset({1, 2, 3}),
+            frozenset({1, 4}),
+            frozenset({0, 1, 5}),
+        }
 
 
 class TestDeepSetLists:
     def test_list_pairwise_comparison(self):
         """Test that lists compare element by element"""
-        assert deepset([1, 2]) <= deepset([0, 1, "a", 2, 3])
-        assert deepset([1, 2]) <= deepset([1, 2, 2])
-        assert not deepset([1, 2]) <= deepset([1])
-        assert not deepset([1, 3]) <= deepset([1, 2])
+        assert deepset([1, 2]) <= [0, 1, "a", 2, 3]
+        assert deepset([1, 2]) <= [1, 2, 2]
+        assert not deepset([1, 2]) <= [1]
+        assert not deepset([1, 3]) <= [1, 2]
 
     def test_nested_list_comparison(self):
         """Test nested list structures"""
-        assert deepset([[1, 2], [3]]) <= deepset([[0, 1, 2], [3, 4]])
-        assert not deepset([[1, 3], [3]]) <= deepset([[0, 1, 2], [3, 4]])
+        assert deepset([[1, 2], [3]]) <= [[0, 1, 2], [3, 4]]
+        assert not deepset([[1, 3], [3]]) <= [[0, 1, 2], [3, 4]]
 
     def test_tuple_comparison(self):
         """Test tuple comparisons"""
-        assert deepset((1, 2)) <= deepset((99, 1, 3, 2))
-        assert deepset((1, 2)) <= deepset((1, 2))
-        assert not deepset((1, 2)) <= deepset((1, 3))
+        assert deepset((1, 2)) <= (99, 1, 3, 2)
+        assert deepset((1, 2)) <= (1, 2)
+        assert not deepset((1, 2)) <= (1, 3)
 
 
 class TestDeepSetDicts:
     def test_dict_key_value_comparison(self):
         """Test dictionary comparisons"""
-        assert deepset({"a": 1, "b": [2]}) <= deepset({"a": 1, "b": [1, 2, 3]})
-        assert deepset({"a": 1}) <= deepset({"a": 1})
-        assert deepset({"a": 1}) <= deepset({"a": 1, "b": 2})
-        assert not deepset({"a": 1, "c": 1}) <= deepset({"a": 1, "b": 2})
+        assert deepset({"a": 1, "b": [2]}) <= {"a": 1, "b": [1, 2, 3]}
+        assert deepset({"a": 1}) <= {"a": 1}
+        assert deepset({"a": 1}) <= {"a": 1, "b": 2}
+        assert not deepset({"a": 1, "c": 1}) <= {"a": 1, "b": 2}
 
     def test_nested_dict_comparison(self):
         """Test nested dictionary structures"""
         d1 = {"outer": {"inner": {1}}}
         d2 = {"outer": {"inner": {1, 2}}}
-        assert deepset(d1) <= deepset(d2)
+        assert deepset(d1) <= d2
 
 
 class TestDeepSetMixed:
@@ -87,47 +124,53 @@ class TestDeepSetMixed:
             "sets": {frozenset({1, 2, 3}), frozenset({3, 4})},
             "lists": [[1, 2, 3], (2, 3, 4, 5)],
         }
-        assert deepset(data1) <= deepset(data2)
+        assert deepset(data1) <= data2
 
     def test_tuple_with_nested_sets(self):
         """Test the original example pattern"""
         t1 = ("a", frozenset({2}))
         t2 = ("a", frozenset({2, 3}))
-        assert deepset(t1) <= deepset(t2)
+        assert deepset(t1) <= t2
 
 
 class TestDeepSetOperators:
     def test_equality_operator(self):
         """Test __eq__ operator"""
-        assert deepset({1, 2}) == deepset({1, 2})
-        assert not deepset({1, 2}) == deepset({1, 2, 3})
+        assert deepset({1, 2}) == {1, 2}
+        assert not deepset({1, 2}) == {1, 2, 3}
 
     def test_less_than_operator(self):
         """Test __lt__ operator"""
-        assert deepset({1, 2}) < deepset({1, 2, 3})
-        assert not deepset({1, 2}) < deepset({1, 2})
+        assert deepset({1, 2}) < {1, 2, 3}
+        assert not deepset({1, 2}) < {1, 2}
+        assert deepset({"a": {1, 2}}) < {"a": {1, 2, 3}}
+        assert not deepset({"a": {1, 2, 3}}) < {"a": {1, 2, 3}}
+        assert deepset({"a": [1, 2]}) < {"a": [1, 2, 3]}
+        assert not deepset({"a": [1, 2, 3]}) < {"a": [1, 2, 3]}
+        assert deepset({"a": [1, 2, 3]}) > {"a": [1, 2]}
+        assert not deepset({"a": [1, 2, 3]}) > {"a": [1, 2, 3]}
 
     def test_strict_subset_semantics(self):
         """Test that < requires at least one strict inequality somewhere in the structure"""
         # Sets: strict subset
-        assert deepset({1, 2}) < deepset({1, 2, 3})
-        assert not deepset({1, 2}) < deepset({1, 2})
+        assert deepset({1, 2}) < {1, 2, 3}
+        assert not deepset({1, 2}) < {1, 2}
 
         # Nested sets: strict inequality in nested structure
-        assert deepset({frozenset({1, 2})}) < deepset({frozenset({1, 2, 3})})
-        assert not deepset({frozenset({1, 2})}) < deepset({frozenset({1, 2})})
+        assert deepset({frozenset({1, 2})}) < {frozenset({1, 2, 3})}
+        assert not deepset({frozenset({1, 2})}) < {frozenset({1, 2})}
 
         # Dictionaries: extra key makes it strict
-        assert deepset({"a": 1}) < deepset({"a": 1, "b": 2})
-        assert not deepset({"a": 1}) < deepset({"a": 1})
+        assert deepset({"a": 1}) < {"a": 1, "b": 2}
+        assert not deepset({"a": 1}) < {"a": 1}
 
         # Dictionaries: strict inequality in value
-        assert deepset({"a": {1, 2}}) < deepset({"a": {1, 2, 3}})
-        assert not deepset({"a": {1, 2}}) < deepset({"a": {1, 2}})
+        assert deepset({"a": {1, 2}}) < {"a": {1, 2, 3}}
+        assert not deepset({"a": {1, 2}}) < {"a": {1, 2}}
 
         # Lists: extra elements make it strict
-        assert deepset([1, 2]) < deepset([1, 2, 3])
-        assert not deepset([1, 2]) < deepset([1, 2])
+        assert deepset([1, 2]) < [1, 2, 3]
+        assert not deepset([1, 2]) < [1, 2]
 
         # Mixed nested: strict inequality can come from anywhere
         data1 = {"sets": {frozenset({1, 2})}, "lists": [[1, 2]]}
@@ -135,20 +178,20 @@ class TestDeepSetOperators:
             "sets": {frozenset({1, 2, 3})},
             "lists": [[1, 2]],
         }  # strict in nested set
-        assert deepset(data1) < deepset(data2)
+        assert deepset(data1) < data2
 
         data3 = {"sets": {frozenset({1, 2})}, "lists": [[1, 2]]}
         data4 = {
             "sets": {frozenset({1, 2})},
             "lists": [[1, 2, 3]],
         }  # strict in nested list
-        assert deepset(data3) < deepset(data4)
+        assert deepset(data3) < data4
 
     def test_greater_than_operators(self):
         """Test __gt__ and __ge__ operators"""
-        assert deepset({1, 2, 3}) > deepset({1, 2})
-        assert deepset({1, 2, 3}) >= deepset({1, 2})
-        assert deepset({1, 2}) >= deepset({1, 2})
+        assert deepset({1, 2, 3}) > {1, 2}
+        assert deepset({1, 2, 3}) >= {1, 2}
+        assert deepset({1, 2}) >= {1, 2}
 
     def test_auto_wrapping(self):
         """Test that non-DeepSet objects are automatically wrapped"""
@@ -159,27 +202,27 @@ class TestDeepSetOperators:
 class TestDeepSetEdgeCases:
     def test_empty_collections(self):
         """Test empty collections"""
-        assert deepset(set()) <= deepset({1, 2})
-        assert deepset([]) <= deepset([1, 2])
-        assert deepset({}) <= deepset({"a": 1})
+        assert deepset(set()) <= {1, 2}
+        assert deepset([]) <= [1, 2]
+        assert deepset({}) <= {"a": 1}
 
     def test_non_comparable_types(self):
         """Test with types that don't support comparison"""
         # Should fall back to equality check
         obj1 = object()
         obj2 = object()
-        assert deepset([obj1]) == deepset([obj1])
-        assert not deepset([obj1]) == deepset([obj2])
+        assert deepset([obj1]) == [obj1]
+        assert not deepset([obj1]) == [obj2]
 
     def test_mixed_collection_types_fail(self):
         """Test that comparing different collection types returns False"""
-        assert not deepset([1, 2]) <= deepset({1, 2})
-        assert not deepset({"a": 1}) <= deepset([1, 2])
+        assert not deepset([1, 2]) <= {1, 2}
+        assert not deepset({"a": 1}) <= [1, 2]
 
     def test_string_comparison(self):
         """Test string comparisons work as expected; literal types only checked for equality"""
-        assert not deepset("abc") <= deepset("abcd")
-        assert deepset(["a", "b"]) < deepset(["a", "b", "c", "d"])
+        assert not deepset("abc") <= "abcd"
+        assert deepset(["a", "b"]) < ["a", "b", "c", "d"]
 
 
 class TestDeepSetInitialization:
@@ -203,9 +246,7 @@ class TestZipCompare:
         a = ["x", "z"]
         b = ["w", "x", "y", "z", "a"]
 
-        results = list(
-            zip_compare(a, b, op=operator.le)
-        )  # Using le for subset semantics
+        results = list(zip_compare(a, b, op=operator.le))  # Using le for subset semantics
         expected = [((0, "x"), (1, "x")), ((1, "z"), (3, "z"))]
         assert results == expected
 
@@ -249,9 +290,7 @@ class TestZipCompare:
         expected = [((0, 1), (0, 1)), ((1, 3), (2, 3))]
         assert results == expected
 
-        with pytest.raises(
-            ValueError, match="2nd item 3 in first iterable not .* corresponding"
-        ):
+        with pytest.raises(ValueError, match="2nd item 3 in first iterable not .* corresponding"):
             list(zip_compare(a, b, op=operator.eq))
 
     def test_exception_item_not_found_le(self):
@@ -259,9 +298,7 @@ class TestZipCompare:
         a = [1, "missing"]
         b = [1, 2, 3]  # 'missing' string not in remaining items
 
-        with pytest.raises(
-            ValueError, match="2nd item 'missing' in first iterable not"
-        ):
+        with pytest.raises(ValueError, match="2nd item 'missing' in first iterable not"):
             list(zip_compare(a, b, op=operator.le))
 
     def test_exception_subset_not_satisfied(self):
@@ -269,9 +306,7 @@ class TestZipCompare:
         a = [frozenset({1, 5})]  # {1,5} is not subset of {1,2,3}
         b = [frozenset({1, 2, 3})]
 
-        with pytest.raises(
-            ValueError, match="1st item frozenset.*in first iterable not"
-        ):
+        with pytest.raises(ValueError, match="1st item frozenset.*in first iterable not"):
             list(zip_compare(a, b, op=operator.le))
 
     def test_exception_eq_mismatch(self):
@@ -290,9 +325,7 @@ class TestZipCompare:
         a = [1, 2, "not_found"]
         b = [1, 2]  # Missing item for 'not_found'
 
-        with pytest.raises(
-            ValueError, match="3rd item 'not_found' in first iterable not"
-        ):
+        with pytest.raises(ValueError, match="3rd item 'not_found' in first iterable not"):
             list(zip_compare(a, b, op=operator.eq))
 
     def test_empty_iterators(self):
@@ -357,13 +390,10 @@ class TestComparisonStrength:
         assert _get_comparison_strength([1, 4], [1, 2, 3]) == ComparisonResult.FALSE
 
         # Dicts
-        assert (
-            _get_comparison_strength({"a": 1}, {"a": 1, "b": 2}) == ComparisonResult.LT
-        )
+        assert _get_comparison_strength({"a": 1}, {"a": 1, "b": 2}) == ComparisonResult.LT
         assert _get_comparison_strength({"a": 1}, {"a": 1}) == ComparisonResult.EQ
         assert (
-            _get_comparison_strength({"a": 1, "c": 1}, {"a": 1, "b": 2})
-            == ComparisonResult.FALSE
+            _get_comparison_strength({"a": 1, "c": 1}, {"a": 1, "b": 2}) == ComparisonResult.FALSE
         )
 
         # Literals
@@ -379,15 +409,10 @@ class TestComparisonStrength:
         )
 
         # Dict with nested structure having strict subset
-        assert (
-            _get_comparison_strength({"a": {1, 2}}, {"a": {1, 2, 3}})
-            == ComparisonResult.LT
-        )
+        assert _get_comparison_strength({"a": {1, 2}}, {"a": {1, 2, 3}}) == ComparisonResult.LT
 
         # Mixed: dict has extra key (LT) but nested value is equal (EQ) -> min = LT
-        assert (
-            _get_comparison_strength({"a": 1}, {"a": 1, "b": 2}) == ComparisonResult.LT
-        )
+        assert _get_comparison_strength({"a": 1}, {"a": 1, "b": 2}) == ComparisonResult.LT
 
         # Both structures have differences
         data1 = {"sets": {frozenset({1, 2})}, "lists": [[1, 2]]}
@@ -397,21 +422,21 @@ class TestComparisonStrength:
     def test_strict_subset_semantics_with_enum(self):
         """Test that the new implementation correctly handles strict subset"""
         # Test cases that should return LT (strict subset)
-        assert deepset({1, 2}) < deepset({1, 2, 3})
-        assert not deepset({1, 2}) < deepset({1, 2})
+        assert deepset({1, 2}) < {1, 2, 3}
+        assert not deepset({1, 2}) < {1, 2}
 
         # Nested strict subset
-        assert deepset({frozenset({1, 2})}) < deepset({frozenset({1, 2, 3})})
-        assert not deepset({frozenset({1, 2})}) < deepset({frozenset({1, 2})})
+        assert deepset({frozenset({1, 2})}) < {frozenset({1, 2, 3})}
+        assert not deepset({frozenset({1, 2})}) < {frozenset({1, 2})}
 
         # Dict with extra key
-        assert deepset({"a": 1}) < deepset({"a": 1, "b": 2})
-        assert not deepset({"a": 1}) < deepset({"a": 1})
+        assert deepset({"a": 1}) < {"a": 1, "b": 2}
+        assert not deepset({"a": 1}) < {"a": 1}
 
         # Dict with nested strict subset
-        assert deepset({"a": {1, 2}}) < deepset({"a": {1, 2, 3}})
-        assert not deepset({"a": {1, 2}}) < deepset({"a": {1, 2}})
+        assert deepset({"a": {1, 2}}) < {"a": {1, 2, 3}}
+        assert not deepset({"a": {1, 2}}) < {"a": {1, 2}}
 
         # Lists with extra elements
-        assert deepset([1, 2]) < deepset([1, 2, 3])
-        assert not deepset([1, 2]) < deepset([1, 2])
+        assert deepset([1, 2]) < [1, 2, 3]
+        assert not deepset([1, 2]) < [1, 2]
