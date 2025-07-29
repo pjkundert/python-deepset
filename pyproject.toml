@@ -48,7 +48,7 @@ dev = [
 py-modules = ["deepset"]
 
 [tool.black]
-line-length = 98
+line-length = 100
 target-version = ['py36']
 
 [tool.isort]

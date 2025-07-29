@@ -6,10 +6,10 @@ PYTHON		?= $(shell python3 --version >/dev/null 2>&1 && echo python3 || echo pyt
 PYTHON_V	= $(shell $(PYTHON) -c "import sys; print('-'.join((('venv' if sys.prefix != sys.base_prefix else next(iter(filter(None,sys.base_prefix.split('/'))))),sys.platform,sys.implementation.cache_tag)))" 2>/dev/null )
 
 VERSION		= $(shell sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml)
+VENV		= $(CURDIR)-$(VERSION)-$(PYTHON_V)
 
 # Force export of variables that might be set from command line
 export VENV_OPTS	?=
-export VENV		?= $(CURDIR)-$(VERSION)-$(PYTHON_V)
 export PYTEST		?= pytest
 export PYTEST_OPTS	?= # -vv --capture=no
 
@@ -55,10 +55,16 @@ style_check:
 	isort --check-only deepset.py *.py
 	black deepset.py *.py --check
 
+analyze: style_check
+	$(PYTHON) -m flake8 --color never -j 1 --max-line-length=100 \
+	  --ignore=W503,E201,E202,E203,E127,E221,E223,E226,E231,E241,E242,E251,E265,E272,E274 \
+	  deepset.py test_deepset.py
+
 style:
 	autopep8 --in-place --select=W291,W293 deepset.py *.py
 	black deepset.py *.py
 	isort deepset.py *.py
+
 
 # 
 # Nix and VirtualEnv build, install and activate
@@ -98,4 +104,4 @@ print-%:
 	@echo $*\'s origin is $(origin $*)
 
 
-.PHONY: clean clean-build clean-pyc clean-test test style_check style venv
+.PHONY: clean clean-build clean-pyc clean-test test analyze style_check style venv

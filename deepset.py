@@ -58,7 +58,8 @@ def zip_compare(a, b, op=operator.le):
             except StopIteration:
                 raise ZipCompareError(
                     f"{ordinal(ai+1)} item {x!r} in first iterable not {op}"
-                    f" to any item from {ordinal(bi_from+1)} through {ordinal(bi+1)} in second iterable"
+                    f" to any item from {ordinal(bi_from+1)} through "
+                    f"{ordinal(bi+1)} in second iterable"
                 )
             if recursive_compare(x, y, op=op):
                 break
@@ -146,7 +147,8 @@ def _compare_sets(a, b):
     a_uniq = a - a_used
     b_uniq = b - a_used
 
-    # If sets are trivially identical or a is empty (no possibility of matching any b's), we can short circuit.
+    # If sets are trivially identical or a is empty (no possibility of matching
+    # any b's), we can short circuit.
     if len(a_used) == len(a):
         if len(b) == len(a):
             return ComparisonResult.EQ
@@ -159,12 +161,13 @@ def _compare_sets(a, b):
     # least the same as result.
     result = ComparisonResult.LE
 
-    # Scan the not trivially equal items against each-other, first.  Then scan the trivially equal items.
-    # When a comparison at least as good as the current result is found, we can quit.  Otherwise, the best
-    # match found after a full a x b scan is the result.
+    # Scan the not trivially equal items against each-other, first.  Then scan
+    # the trivially equal items. When a comparison at least as good as the
+    # current result is found, we can quit.  Otherwise, the best match found
+    # after a full a x b scan is the result.
     for x in a_uniq:
-        # Try to find a match in b_uniq first, then b_used.  Avoid re-processing relocated y's
-        found = False
+        # Try to find a match in b_uniq first, then b_used.  Avoid re-processing
+        # relocated y's
         best = ComparisonResult.FALSE
         b_move = set()
 
@@ -187,7 +190,8 @@ def _compare_sets(a, b):
                     if best >= result:
                         break
             else:
-                # No comparison at least as good as result found for this a item, in any b!  New baseline result.
+                # No comparison at least as good as result found for this a item,
+                # in any b!  New baseline result.
                 result = min(best, result)
         b_used |= b_move
         b_uniq -= b_move

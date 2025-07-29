@@ -8,7 +8,6 @@ from deepset import (
     _compare_sets,
     _get_comparison_strength,
     deepset,
-    recursive_compare,
     zip_compare,
 )
 
@@ -54,7 +53,8 @@ class TestDeepSetSets:
         assert not deepset(frozenset({1, 4})) <= frozenset({1, 2, 3})
 
     def test_many_set_comparison(self):
-        """Test many compatible sets comparisons.  Multiple items of a may match a few items of b..."""
+        """Test many compatible sets comparisons. Multiple items of a may match
+        a few items of b..."""
         assert deepset({frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})}) <= {
             frozenset({1, 2, 3})
         }

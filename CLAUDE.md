@@ -39,6 +39,7 @@ Uses ordered enum with `min()` aggregation instead of complex operator-passing r
 # Essential commands
 make install-dev          # Install dev dependencies
 make test                 # Run all tests
+make analyze              # Run flake8 linting
 make nix-venv-test        # Run tests in Nix environment
 make build                # Build package
 
@@ -91,3 +92,10 @@ for child in nested_items:
 - Detailed error messages show which item failed and where
 
 **No runtime dependencies** - pure Python stdlib implementation.
+
+## Commit Guidelines
+
+**IMPORTANT: Use only ASCII characters in commit messages and PR descriptions.** 
+Avoid Unicode characters, emoji, or special symbols to ensure compatibility with all tooling and environments.
+
+**Do not add Claude Code attribution suffixes** to commit messages. Keep commit messages clean and focused on the technical changes.
