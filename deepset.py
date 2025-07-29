@@ -1,6 +1,6 @@
 import operator
 from collections import abc
-from enum import Enum
+from enum import IntEnum
 
 
 def ordinal(num):
@@ -12,24 +12,20 @@ def ordinal(num):
 ordinal.suffixes = {1: "st", 2: "nd", 3: "rd"}
 
 
-class ComparisonResult(Enum):
+class ComparisonResult(IntEnum):
     """Ordered enum representing the strength of subset relationships.
 
     Values are ordered from weakest to strongest relationship:
     FALSE < LT < LE < EQ
 
     This allows using min() to aggregate results across nested structures.
+    IntEnum provides automatic comparison operators based on integer values.
     """
 
     FALSE = 0  # No correspondence (items in a not found in b)
     LT = 1  # Strict subset (a < b, extras in b)
     LE = 2  # Subset or equal (a <= b, may have extras in b)
     EQ = 3  # Equal (a == b, identical)
-
-    def __lt__(self, other):
-        if isinstance(other, ComparisonResult):
-            return self.value < other.value
-        return NotImplemented
 
 
 class ZipCompareError(ValueError):
@@ -144,48 +140,73 @@ def _compare_mappings(a, b):
 
 def _compare_sets(a, b):
     """Compare two sets and return relationship strength."""
-    # Check for items in a not in b first
-    equal = a & b
-    a_uniq = a - equal
-    b_uniq = b - equal
+    # Check for items in a not found in b first.
+    a_used = a & b
+    b_used = a_used.copy()
+    a_uniq = a - a_used
+    b_uniq = b - a_used
 
-    # If sets are identical
-    if len(equal) == len(a):
+    # If sets are trivially identical or a is empty (no possibility of matching any b's), we can short circuit.
+    if len(a_used) == len(a):
         if len(b) == len(a):
             return ComparisonResult.EQ
-        if len(b) > len(a):
+        if len(a) == 0:
             return ComparisonResult.LT
 
-    # If a has items not in b, check recursive relationships
-    a_used = set()
-    b_used = set()
-    result = ComparisonResult.LT if len(b_uniq) > 0 else ComparisonResult.LE
+    # If a has items not in b, check recursive relationships.  The best we can do now is <=, because
+    # any extra items in b might be partially matched by some item(s) in a, but we know that every b
+    # isn't strictly equal to something in a.  Look until we find the best possible match in b at
+    # least the same as result.
+    result = ComparisonResult.LE
 
+    # Scan the not trivially equal items against each-other, first.  Then scan the trivially equal items.
+    # When a comparison at least as good as the current result is found, we can quit.  Otherwise, the best
+    # match found after a full a x b scan is the result.
     for x in a_uniq:
-        # Try to find a match in b_uniq first
+        # Try to find a match in b_uniq first, then b_used.  Avoid re-processing relocated y's
         found = False
+        best = ComparisonResult.FALSE
+        b_move = set()
+
         for y in b_uniq:
             child_result = _get_comparison_strength(x, y)
             if child_result != ComparisonResult.FALSE:
+                # It matched <=/<, so we can continue
                 a_used.add(x)
-                b_used.add(y)
-                b_uniq.remove(y)
-                result = min(result, child_result)
-                found = True
-                break
-
-        if not found:
+                b_move.add(y)
+                best = max(best, child_result)
+                if best >= result:
+                    break
+        else:
             # Try to find a match in already used items from b
             for y in b_used:
                 child_result = _get_comparison_strength(x, y)
                 if child_result != ComparisonResult.FALSE:
                     a_used.add(x)
-                    result = min(result, child_result)
-                    found = True
-                    break
+                    best = max(best, child_result)
+                    if best >= result:
+                        break
+            else:
+                # No comparison at least as good as result found for this a item, in any b!  New baseline result.
+                result = min(best, result)
+        b_used |= b_move
+        b_uniq -= b_move
+        if result == ComparisonResult.FALSE:
+            return result
 
-        if not found:
-            return ComparisonResult.FALSE
+    # If we get here, and we're still <= but have b items unmatched, see if any a items match them.
+    # We're looking for an excuse to return LE, instead of defaulting to LT due to remaining
+    # unmatched b items; previously used a items could also match these.
+    if result == ComparisonResult.LE:
+        for y in b_uniq:
+            for x in a:
+                child_result = _get_comparison_strength(x, y)
+                if child_result >= result:
+                    break
+            else:
+                # No element of a was at best LE; We must return LT
+                result = ComparisonResult.LT
+                break
 
     return result
 

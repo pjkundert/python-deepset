@@ -6,11 +6,13 @@ PYTHON		?= $(shell python3 --version >/dev/null 2>&1 && echo python3 || echo pyt
 PYTHON_V	= $(shell $(PYTHON) -c "import sys; print('-'.join((('venv' if sys.prefix != sys.base_prefix else next(iter(filter(None,sys.base_prefix.split('/'))))),sys.platform,sys.implementation.cache_tag)))" 2>/dev/null )
 
 VERSION		= $(shell sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml)
-VENV_OPTS	=
-VENV		= $(CURDIR)-$(VERSION)-$(PYTHON_V)
 
-PYTEST		?= pytest
-PYTEST_OPTS	= # -vv --capture=no
+# Force export of variables that might be set from command line
+export VENV_OPTS	?=
+export VENV		?= $(CURDIR)-$(VERSION)-$(PYTHON_V)
+export PYTEST		?= pytest
+export PYTEST_OPTS	?= # -vv --capture=no
+
 
 build:
 	$(PYTHON) -m build
